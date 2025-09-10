@@ -771,10 +771,25 @@
                     return;
                 }
                 
+                // Disable button to prevent multiple clicks
+                document.getElementById('player-join-btn').disabled = true;
+                document.getElementById('player-join-btn').textContent = 'Joining...';
+                
+                console.log('Attempting to join game:', code);
                 this.sendMessage('player_join', {
                     gameCode: code,
                     name: name
                 });
+                
+                // Re-enable button after timeout if no response
+                setTimeout(() => {
+                    const btn = document.getElementById('player-join-btn');
+                    if (btn.disabled) {
+                        btn.disabled = false;
+                        btn.textContent = '🎮 Join Game';
+                        alert('No response from game. Please check the code and try again.');
+                    }
+                }, 5000);
             }
 
             showPlayerWaiting(playerName) {
