@@ -533,11 +533,25 @@
             init() {
                 this.updateConnectionStatus('connected');
                 
+                // Add debug info
+                console.log('Game Manager initialized');
+                console.log('Is Admin:', this.isAdmin);
+                console.log('Player ID:', this.playerId);
+                console.log('URL Params:', window.location.search);
+                
                 if (this.isAdmin) {
+                    console.log('Showing admin setup');
                     this.showScreen('admin-setup');
                 } else {
+                    console.log('Showing player join');
                     this.showScreen('player-join');
                 }
+                
+                // Test messaging system
+                setTimeout(() => {
+                    console.log('Testing message system...');
+                    this.sendMessage('test', { message: 'System test' });
+                }, 1000);
             }
 
             showScreen(screenId) {
