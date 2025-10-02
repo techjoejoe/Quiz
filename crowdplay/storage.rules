@@ -1,0 +1,36 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function hasRole(role) {
+      return isAuthenticated() && 
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.roles[role] == true;
+    }
+    
+    function isHost() {
+      return hasRole('HOST');
+    }
+    
+    function isAdmin() {
+      return hasRole('ADMIN');
+    }
+    
+    // Question images
+    match /questions/{roomId}/{fileName} {
+      allow read: if true;
+      allow write: if isHost() || isAdmin();
+      allow delete: if isHost() || isAdmin();
+    }
+    
+    // Brand assets
+    match /brand/{fileName} {
+      allow read: if true;
+      allow write: if isAdmin();
+      allow delete: if isAdmin();
+    }
+  }
+}

@@ -1,0 +1,113 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function hasRole(role) {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles[role] == true;
+    }
+    
+    function isHost() {
+      return hasRole('HOST');
+    }
+    
+    function isAdmin() {
+      return hasRole('ADMIN');
+    }
+    
+    function isRoomHost(roomId) {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/rooms/$(roomId)).data.hostId == request.auth.uid;
+    }
+    
+    function isPlayer(roomId, playerId) {
+      return request.auth != null && 
+        request.auth.token.roomId == roomId && 
+        request.auth.token.playerId == playerId;
+    }
+    
+    function roomIsActive(roomId) {
+      let room = get(/databases/$(database)/documents/rooms/$(roomId)).data;
+      return room.status == 'ACTIVE' || room.status == 'WAITING';
+    }
+    
+    // Config collection
+    match /config/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow create: if isAdmin();
+      allow update: if isAuthenticated() && 
+        (request.auth.uid == userId || isAdmin()) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['roles']) || isAdmin());
+      allow delete: if isAdmin();
+    }
+    
+    // Rooms collection
+    match /rooms/{roomId} {
+      allow read: if true;
+      allow create: if isHost() || isAdmin();
+      allow update: if isRoomHost(roomId) || isAdmin();
+      allow delete: if isAdmin();
+      
+      // Players subcollection
+      match /players/{playerId} {
+        allow read: if true;
+        allow create: if request.auth != null && 
+          request.auth.token.roomId == roomId &&
+          request.auth.token.playerId == playerId &&
+          request.resource.data.playerId == playerId;
+        allow update: if (isPlayer(roomId, playerId) && 
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['score', 'isKicked'])) ||
+          isRoomHost(roomId) || isAdmin();
+        allow delete: if isRoomHost(roomId) || isAdmin();
+      }
+      
+      // Questions subcollection
+      match /questions/{questionId} {
+        allow read: if resource.data.revealed == true || isRoomHost(roomId) || isAdmin();
+        allow create: if isRoomHost(roomId) || isAdmin();
+        allow update: if isRoomHost(roomId) || isAdmin();
+        allow delete: if isRoomHost(roomId) || isAdmin();
+      }
+      
+      // Answers subcollection
+      match /answers/{answerId} {
+        allow read: if isRoomHost(roomId) || isAdmin() || 
+          (request.auth != null && resource.data.playerId == request.auth.token.playerId);
+        allow create: if request.auth != null && 
+          request.auth.token.roomId == roomId &&
+          request.resource.data.playerId == request.auth.token.playerId &&
+          roomIsActive(roomId);
+        allow update: if false;
+        allow delete: if isAdmin();
+      }
+      
+      // State subcollection
+      match /state/{document} {
+        allow read: if true;
+        allow write: if isRoomHost(roomId) || isAdmin();
+      }
+    }
+    
+    // Leaderboards collection
+    match /leaderboards/{document} {
+      allow read: if true;
+      allow write: if false; // Only writable by Cloud Functions
+    }
+    
+    // Badges collection
+    match /badges/{document} {
+      allow read: if true;
+      allow write: if false; // Only writable by Cloud Functions
+    }
+  }
+}
